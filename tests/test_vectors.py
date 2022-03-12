@@ -1,3 +1,20 @@
+import bench32m
+import pytest
+
+BECH32_CHARSET = "qpzry9x8gf2tvdw0s3jn54khce6mua7l"
+
+
+def base32_to_bytes(b32str: str):
+    byte_array = bytearray(len(b32str))
+
+    for idx in range(
+        len(b32str)
+    ):  # Not very efficient, but I am lazy to create a map for this
+        byte_array[idx] = BECH32_CHARSET.index(b32str[idx])
+
+    return bytes(byte_array)
+
+
 VALID_BECH32M = [
     "A1LQFN3A",
     "a1lqfn3a",
@@ -26,20 +43,32 @@ INVALID_BECH32M = [
 ]
 
 VALID_SEGWIT_ADDRESS = [
-    ["BC1QW508D6QEJXTDG4Y5R3ZARVARY0C5XW7KV8F3T4",
-     "0014751e76e8199196d454941c45d1b3a323f1433bd6"],
-    ["tb1qrp33g0q5c5txsp9arysrx4k6zdkfs4nce4xj0gdcccefvpysxf3q0sl5k7",
-     "00201863143c14c5166804bd19203356da136c985678cd4d27a1b8c6329604903262"],
-    ["bc1pw508d6qejxtdg4y5r3zarvary0c5xw7kw508d6qejxtdg4y5r3zarvary0c5xw7kt5nd6y",
-     "5128751e76e8199196d454941c45d1b3a323f1433bd6751e76e8199196d454941c45d1b3a323f1433bd6"],
+    [
+        "BC1QW508D6QEJXTDG4Y5R3ZARVARY0C5XW7KV8F3T4",
+        "0014751e76e8199196d454941c45d1b3a323f1433bd6",
+    ],
+    [
+        "tb1qrp33g0q5c5txsp9arysrx4k6zdkfs4nce4xj0gdcccefvpysxf3q0sl5k7",
+        "00201863143c14c5166804bd19203356da136c985678cd4d27a1b8c6329604903262",
+    ],
+    [
+        "bc1pw508d6qejxtdg4y5r3zarvary0c5xw7kw508d6qejxtdg4y5r3zarvary0c5xw7kt5nd6y",
+        "5128751e76e8199196d454941c45d1b3a323f1433bd6751e76e8199196d454941c45d1b3a323f1433bd6",
+    ],
     ["BC1SW50QGDZ25J", "6002751e"],
     ["bc1zw508d6qejxtdg4y5r3zarvaryvaxxpcs", "5210751e76e8199196d454941c45d1b3a323"],
-    ["tb1qqqqqp399et2xygdj5xreqhjjvcmzhxw4aywxecjdzew6hylgvsesrxh6hy",
-     "0020000000c4a5cad46221b2a187905e5266362b99d5e91c6ce24d165dab93e86433"],
-    ["tb1pqqqqp399et2xygdj5xreqhjjvcmzhxw4aywxecjdzew6hylgvsesf3hn0c",
-     "5120000000c4a5cad46221b2a187905e5266362b99d5e91c6ce24d165dab93e86433"],
-    ["bc1p0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7vqzk5jj0",
-     "512079be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"],
+    [
+        "tb1qqqqqp399et2xygdj5xreqhjjvcmzhxw4aywxecjdzew6hylgvsesrxh6hy",
+        "0020000000c4a5cad46221b2a187905e5266362b99d5e91c6ce24d165dab93e86433",
+    ],
+    [
+        "tb1pqqqqp399et2xygdj5xreqhjjvcmzhxw4aywxecjdzew6hylgvsesf3hn0c",
+        "5120000000c4a5cad46221b2a187905e5266362b99d5e91c6ce24d165dab93e86433",
+    ],
+    [
+        "bc1p0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7vqzk5jj0",
+        "512079be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+    ],
 ]
 
 INVALID_SEGWIT_ADDRESS = [
@@ -60,6 +89,44 @@ INVALID_SEGWIT_ADDRESS = [
     "bc1gmk9yu",
 ]
 
+# Custom created test vectors for encoder
+# format  (human, data, correct_result)
+ENCODE_BECH32_VALID = [
+    ("A", bytes(), "a12uel5l"),
+    ("a", bytes(), "a12uel5l"),
+    (
+        "an83characterlonghumanreadablepartthatcontainsthenumber1andtheexcludedcharactersbio",
+        bytes(),
+        "an83characterlonghumanreadablepartthatcontainsthenumber1andtheexcludedcharactersbio1tt5tgs",
+    ),
+    (
+        "abcdef",
+        base32_to_bytes("qpzry9x8gf2tvdw0s3jn54khce6mua7l"),
+        "abcdef1qpzry9x8gf2tvdw0s3jn54khce6mua7lmqqqxw",
+    ),
+]
 
-def test_valid():
-    assert len(VALID_BECH32M) == 7
+
+ENCODE_BECH32_INVALID = [
+    (chr(0x20), bytes()),
+    (chr(0x7F), bytes()),
+    (chr(0x80), bytes()),
+    (
+        "an84characterslonghumanreadablepartthatcontainsthenumber1andtheexcludedcharactersbio",
+        bytes(),
+    ),
+    ("", base32_to_bytes("pzry9x")),
+    ("", base32_to_bytes("")),
+    ("", base32_to_bytes("q")),
+]
+
+
+def test_bech32_encode_valid():
+    for human, data, result in ENCODE_BECH32_VALID:
+        assert bench32m.encode(human, data, bench32m.BECH32_PROTOCOL) == result
+
+
+def test_bech32_encode_invalid():
+    for human, data in ENCODE_BECH32_INVALID:
+        with pytest.raises(Exception):
+            bench32m.encode(human, data, bench32m.BECH32_PROTOCOL)
