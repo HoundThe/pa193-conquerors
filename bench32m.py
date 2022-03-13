@@ -117,8 +117,16 @@ def decode(string: str) -> Tuple[str, bytes, int]:
     return (human, data_bytes[:-BECH32M_CHECKSUM_LENGTH], enc)
 
 
-def address_encode(pubkey: str):
-    pass
+def address_encode(human: str, witver: str, data: str):
+    data = [data[idx:idx + 2] for idx in range(0, len(data), 2)]
+    for idx, byte in enumerate(data):
+        data[idx] = bin(int(data[idx], 16))[2:].zfill(8)
+    data = ''.join(data)
+    data = [data[idx:idx + 5] for idx in range(0, len(data), 5)]
+    data.insert(0, bin(int(witver, 16))[2:].zfill(5))
+    for idx, byte in enumerate(data):
+        data[idx] = int('%02X' % int(data[idx], 2), 16)
+    return encode(human, bytes(data))
 
 
 def decode_program(data: bytes):

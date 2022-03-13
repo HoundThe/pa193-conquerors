@@ -180,6 +180,42 @@ def test_bech32m_decode_address_valid():
         try:
             human, ver, program = bench32m.address_decode(input)
             result = segwit_scriptpubkey(ver, program)
+            print(result)
             assert result == binascii.unhexlify(output)
+        except Exception as ex:
+            assert False, f"Exception raised - {ex}"
+
+
+VALID_SEGWIT_ADDRESS_BECH32M = [
+    [
+        "bc1pw508d6qejxtdg4y5r3zarvary0c5xw7kw508d6qejxtdg4y5r3zarvary0c5xw7kt5nd6y",
+        "5128751e76e8199196d454941c45d1b3a323f1433bd6751e76e8199196d454941c45d1b3a323f1433bd6",
+    ],
+    ["BC1SW50QGDZ25J", "6002751e"],
+    [
+        "bc1p0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7vqzk5jj0",
+        "512079be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+    ],
+]
+
+VALID_SEGWIT_ADDRESS_BECH32 = [
+    [
+        "BC1QW508D6QEJXTDG4Y5R3ZARVARY0C5XW7KV8F3T4",
+        "0014751e76e8199196d454941c45d1b3a323f1433bd6",
+    ],
+    [
+        "tb1qrp33g0q5c5txsp9arysrx4k6zdkfs4nce4xj0gdcccefvpysxf3q0sl5k7",
+        "00201863143c14c5166804bd19203356da136c985678cd4d27a1b8c6329604903262",
+    ],
+]
+
+
+def test_bech32m_encode_address_valid():
+    for output, input in VALID_SEGWIT_ADDRESS_BECH32M:
+        witver = input[:2]
+        if witver != "00":
+            witver = str(int(witver) - 50)
+        try:
+            assert bench32m.address_encode(output[:2], witver, input[4:]) == output.lower()
         except Exception as ex:
             assert False, f"Exception raised - {ex}"
