@@ -1,5 +1,6 @@
 import bench32m
 import pytest
+import binascii
 
 BECH32_CHARSET = "qpzry9x8gf2tvdw0s3jn54khce6mua7l"
 
@@ -91,42 +92,94 @@ INVALID_SEGWIT_ADDRESS = [
 
 # Custom created test vectors for encoder
 # format  (human, data, correct_result)
-ENCODE_BECH32_VALID = [
-    ("A", bytes(), "a12uel5l"),
-    ("a", bytes(), "a12uel5l"),
+ENCODE_BECH32M_VALID = [
+    ("A", bytes(), "a1lqfn3a"),
+    ("a", bytes(), "a1lqfn3a"),
     (
-        "an83characterlonghumanreadablepartthatcontainsthenumber1andtheexcludedcharactersbio",
+        "an83characterlonghumanreadablepartthatcontainsthetheexcludedcharactersbioandnumber1",
         bytes(),
-        "an83characterlonghumanreadablepartthatcontainsthenumber1andtheexcludedcharactersbio1tt5tgs",
+        "an83characterlonghumanreadablepartthatcontainsthetheexcludedcharactersbioandnumber11sg7hg6",
     ),
     (
         "abcdef",
-        base32_to_bytes("qpzry9x8gf2tvdw0s3jn54khce6mua7l"),
-        "abcdef1qpzry9x8gf2tvdw0s3jn54khce6mua7lmqqqxw",
+        base32_to_bytes("l7aum6echk45nj3s0wdvt2fg8x9yrzpq"),
+        "abcdef1l7aum6echk45nj3s0wdvt2fg8x9yrzpqzd3ryx",
+    ),
+    (
+        "1",
+        base32_to_bytes(
+            "llllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllll"
+        ),
+        "11llllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllludsr8",
+    ),
+    (
+        "split",
+        base32_to_bytes("checkupstagehandshakeupstreamerranterredcaperred"),
+        "split1checkupstagehandshakeupstreamerranterredcaperredlc445v",
+    ),
+    (
+        "?",
+        bytes(),
+        "?1v759aa",
     ),
 ]
 
 
-ENCODE_BECH32_INVALID = [
+ENCODE_BECH32M_INVALID = [
     (chr(0x20), bytes()),
     (chr(0x7F), bytes()),
     (chr(0x80), bytes()),
     (
-        "an84characterslonghumanreadablepartthatcontainsthenumber1andtheexcludedcharactersbio",
+        "an84characterslonghumanreadablepartthatcontainsthetheexcludedcharactersbioandnumber1",
         bytes(),
     ),
-    ("", base32_to_bytes("pzry9x")),
+    ("", base32_to_bytes("qyrz8w")),
     ("", base32_to_bytes("")),
-    ("", base32_to_bytes("q")),
+    ("", base32_to_bytes("p")),
 ]
 
 
-def test_bech32_encode_valid():
-    for human, data, result in ENCODE_BECH32_VALID:
-        assert bench32m.encode(human, data, bench32m.BECH32_PROTOCOL) == result
+def test_bech32m_encode_valid():
+    for human, data, result in ENCODE_BECH32M_VALID:
+        assert bench32m.encode(human, data) == result
 
 
-def test_bech32_encode_invalid():
-    for human, data in ENCODE_BECH32_INVALID:
+def test_bech32m_encode_invalid():
+    for human, data in ENCODE_BECH32M_INVALID:
         with pytest.raises(Exception):
-            bench32m.encode(human, data, bench32m.BECH32_PROTOCOL)
+            bench32m.encode(human, data)
+
+
+def test_bech32m_decode_valid():
+    for string in VALID_BECH32M:
+        try:
+            bench32m.decode(string)
+        except Exception as ex:
+            assert False, f"Exception raised - {ex}"
+
+
+def test_bech32m_decode_invalid():
+    for string in INVALID_BECH32M:
+        with pytest.raises(Exception):
+            bench32m.decode(string)
+
+
+def test_bech32m_decode_address_invalid():
+    for string in INVALID_SEGWIT_ADDRESS:
+        with pytest.raises(Exception):
+            bench32m.address_decode(string)
+
+
+def segwit_scriptpubkey(ver, prog):
+    """Construct a Segwit scriptPubKey for a given witness program."""
+    return bytes([ver + 0x50 if ver else 0, len(prog)]) + prog
+
+
+def test_bech32m_decode_address_valid():
+    for input, output in VALID_SEGWIT_ADDRESS:
+        try:
+            human, ver, program = bench32m.address_decode(input)
+            result = segwit_scriptpubkey(ver, program)
+            assert result == binascii.unhexlify(output)
+        except Exception as ex:
+            assert False, f"Exception raised - {ex}"
