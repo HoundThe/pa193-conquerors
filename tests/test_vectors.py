@@ -180,7 +180,6 @@ def test_bech32m_decode_address_valid():
         try:
             human, ver, program = bench32m.address_decode(input)
             result = segwit_scriptpubkey(ver, program)
-            print(result)
             assert result == binascii.unhexlify(output)
         except Exception as ex:
             assert False, f"Exception raised - {ex}"
