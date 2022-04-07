@@ -117,10 +117,6 @@ def decode(string: str) -> Tuple[str, bytes, int]:
     return (human, data_bytes[:-BECH32M_CHECKSUM_LENGTH], enc)
 
 
-def address_encode(pubkey: str):
-    pass
-
-
 def decode_program(data: bytes):
     all_bytes = bytearray()
     reg = 0
@@ -142,29 +138,3 @@ def decode_program(data: bytes):
         raise ValueError("Invalid witness program")
 
     return bytes(all_bytes)
-
-
-def address_decode(address: str) -> Tuple[str, int, bytes]:
-    human, data, enc = decode(address)
-
-    if len(data) < 3:
-        raise ValueError("Invalid data length")
-
-    if human not in ["bc", "tb"]:
-        raise ValueError("Readable part of SegWit address has to be 'tb' or 'bc'")
-
-    ver = data[0]
-    if ver < 0 or ver > 16:
-        raise ValueError("Invalid version value, has to be in range [0-16]")
-
-    program = decode_program(data[1:])
-    if len(program) < 2 or len(program) > 40:
-        raise ValueError("Invalid program length")
-
-    if ver == 0 and len(program) != 20 and len(program) != 32:
-        raise ValueError("Invalid program length for version 0")
-
-    if (ver == 0 and enc != BECH32) or (ver != 0 and enc != BECH32M):
-        raise ValueError("Invalid encoding based on version")
-
-    return (human, ver, program)
