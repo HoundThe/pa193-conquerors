@@ -1,6 +1,5 @@
 import bech32m
 import pytest
-import binascii
 
 BECH32_CHARSET = "qpzry9x8gf2tvdw0s3jn54khce6mua7l"
 
@@ -43,52 +42,32 @@ INVALID_BECH32M = [
     "1p2gdwpf",
 ]
 
-VALID_SEGWIT_ADDRESS = [
-    [
-        "BC1QW508D6QEJXTDG4Y5R3ZARVARY0C5XW7KV8F3T4",
-        "0014751e76e8199196d454941c45d1b3a323f1433bd6",
-    ],
-    [
-        "tb1qrp33g0q5c5txsp9arysrx4k6zdkfs4nce4xj0gdcccefvpysxf3q0sl5k7",
-        "00201863143c14c5166804bd19203356da136c985678cd4d27a1b8c6329604903262",
-    ],
-    [
-        "bc1pw508d6qejxtdg4y5r3zarvary0c5xw7kw508d6qejxtdg4y5r3zarvary0c5xw7kt5nd6y",
-        "5128751e76e8199196d454941c45d1b3a323f1433bd6751e76e8199196d454941c45d1b3a323f1433bd6",
-    ],
-    ["BC1SW50QGDZ25J", "6002751e"],
-    ["bc1zw508d6qejxtdg4y5r3zarvaryvaxxpcs", "5210751e76e8199196d454941c45d1b3a323"],
-    [
-        "tb1qqqqqp399et2xygdj5xreqhjjvcmzhxw4aywxecjdzew6hylgvsesrxh6hy",
-        "0020000000c4a5cad46221b2a187905e5266362b99d5e91c6ce24d165dab93e86433",
-    ],
-    [
-        "tb1pqqqqp399et2xygdj5xreqhjjvcmzhxw4aywxecjdzew6hylgvsesf3hn0c",
-        "5120000000c4a5cad46221b2a187905e5266362b99d5e91c6ce24d165dab93e86433",
-    ],
-    [
-        "bc1p0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7vqzk5jj0",
-        "512079be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
-    ],
+# Custom created test vectors for encoder
+# format  (bech32m string, data hexstring)
+DECODE_BECH32M_MATCH = [
+    ("abcdef140x77khk82w", "abcdef"),
+    ("test1wejkxar0wg64ekuu", "766563746f72"),
+    ("A1LQFN3A", ""),
+    ("a1lqfn3a", ""),
+    (
+        "an83characterlonghumanreadablepartthatcontainsthetheexcludedcharactersbioandnumber11sg7hg6",
+        "",
+    ),
+    (
+        "abcdef1l7aum6echk45nj3s0wdvt2fg8x9yrzpqzd3ryx",
+        "ffbbcdeb38bdab49ca307b9ac5a928398a418820",
+    ),
+    (
+        "11llllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllludsr8",
+        "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffc0",
+    ),
+    (
+        "split1checkupstagehandshakeupstreamerranterredcaperredlc445v",
+        "c5f38b70305f519bf66d85fb6cf03058f3dde463ecd7918f2dc743918f2d",
+    ),
+    ("?1v759aa", ""),
 ]
 
-INVALID_SEGWIT_ADDRESS = [
-    "tc1p0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7vq5zuyut",
-    "bc1p0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7vqh2y7hd",
-    "tb1z0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7vqglt7rf",
-    "BC1S0XLXVLHEMJA6C4DQV22UAPCTQUPFHLXM9H8Z3K2E72Q4K9HCZ7VQ54WELL",
-    "bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kemeawh",
-    "tb1q0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7vq24jc47",
-    "bc1p38j9r5y49hruaue7wxjce0updqjuyyx0kh56v8s25huc6995vvpql3jow4",
-    "BC130XLXVLHEMJA6C4DQV22UAPCTQUPFHLXM9H8Z3K2E72Q4K9HCZ7VQ7ZWS8R",
-    "bc1pw5dgrnzv",
-    "bc1p0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7v8n0nx0muaewav253zgeav",
-    "BC1QR508D6QEJXTDG4Y5R3ZARVARYV98GJ9P",
-    "tb1p0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7vq47Zagq",
-    "bc1p0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7v07qwwzcrf",
-    "tb1p0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7vpggkg4j",
-    "bc1gmk9yu",
-]
 
 # Custom created test vectors for encoder
 # format  (human, data, correct_result)
@@ -106,13 +85,6 @@ ENCODE_BECH32M_VALID = [
         "abcdef1l7aum6echk45nj3s0wdvt2fg8x9yrzpqzd3ryx",
     ),
     (
-        "1",
-        base32_to_bytes(
-            "llllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllll"
-        ),
-        "11llllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllludsr8",
-    ),
-    (
         "split",
         base32_to_bytes("checkupstagehandshakeupstreamerranterredcaperred"),
         "split1checkupstagehandshakeupstreamerranterredcaperredlc445v",
@@ -121,6 +93,26 @@ ENCODE_BECH32M_VALID = [
         "?",
         bytes(),
         "?1v759aa",
+    ),
+    (
+        "test",
+        bech32m.encode_data(bytes.fromhex("766563746f72")),
+        "test1wejkxar0wg64ekuu",
+    ),
+    (
+        "an83characterlonghumanreadablepartthatcontainsthetheexcludedcharactersbioandnumber1",
+        bech32m.encode_data(bytes.fromhex("")),
+        "an83characterlonghumanreadablepartthatcontainsthetheexcludedcharactersbioandnumber11sg7hg6",
+    ),
+    (
+        "abcdef",
+        base32_to_bytes("l7aum6echk45nj3s0wdvt2fg8x9yrzpq"),
+        "abcdef1l7aum6echk45nj3s0wdvt2fg8x9yrzpqzd3ryx",
+    ),
+    (
+        "split",
+        base32_to_bytes("checkupstagehandshakeupstreamerranterredcaperred"),
+        "split1checkupstagehandshakeupstreamerranterredcaperredlc445v",
     ),
 ]
 
@@ -141,7 +133,7 @@ ENCODE_BECH32M_INVALID = [
 
 def test_bech32m_encode_valid():
     for human, data, result in ENCODE_BECH32M_VALID:
-        assert bech32m.encode(human, data) == result
+        assert bech32m.encode(human, bech32m.decode_data(data)) == result
 
 
 def test_bech32m_encode_invalid():
@@ -158,28 +150,16 @@ def test_bech32m_decode_valid():
             assert False, f"Exception raised - {ex}"
 
 
+def test_bech32m_decode_match():
+    for string, ref in DECODE_BECH32M_MATCH:
+        try:
+            result = bech32m.decode(string)
+            assert result[1].hex() == ref
+        except Exception as ex:
+            assert False, f"Exception raised - {ex}"
+
+
 def test_bech32m_decode_invalid():
     for string in INVALID_BECH32M:
         with pytest.raises(Exception):
             bech32m.decode(string)
-
-
-# def test_bech32m_decode_address_invalid():
-#     for string in INVALID_SEGWIT_ADDRESS:
-#         with pytest.raises(Exception):
-#             bech32m.address_decode(string)
-
-
-def segwit_scriptpubkey(ver, prog):
-    """Construct a Segwit scriptPubKey for a given witness program."""
-    return bytes([ver + 0x50 if ver else 0, len(prog)]) + prog
-
-
-# def test_bech32m_decode_address_valid():
-#     for input, output in VALID_SEGWIT_ADDRESS:
-#         try:
-#             human, ver, program = bech32m.address_decode(input)
-#             result = segwit_scriptpubkey(ver, program)
-#             assert result == binascii.unhexlify(output)
-#         except Exception as ex:
-#             assert False, f"Exception raised - {ex}"

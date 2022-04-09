@@ -1,27 +1,44 @@
+#! /bin/env python3
+
 import argparse
 import sys
+import os
 from enum import Enum
+import base64
 import bech32m
-
-description = "Bech32m encoder/decoder of variable input"
 
 
 class DataFormat(Enum):
+    TEXT = "text"
     HEX = "hex"
     BINARY = "binary"
     BASE64 = "base64"
 
 
-def read_data(file, format) -> bytes:
-    pass
+def read_bytes(file, form: DataFormat) -> bytes:
+    if form == DataFormat.HEX:
+        data = bytes.fromhex(file.read().decode("utf-8"))
+    elif form == DataFormat.BINARY:
+        data = file.read()
+    elif form == DataFormat.BASE64:
+        data = base64.decodebytes(file.read())
+
+    return data
 
 
-def write_data(file, format) -> None:
-    pass
+def write_bytes(file, data: bytes, form: DataFormat) -> None:
+    if form == DataFormat.HEX:
+        file.write(data.hex().encode("ascii"))
+    elif form == DataFormat.BINARY:
+        file.write(data)
+    elif form == DataFormat.BASE64:
+        file.write(base64.encodebytes(data))
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description=description)
+    parser = argparse.ArgumentParser(
+        description="Bech32m encoder/decoder of arbitrary input"
+    )
     parser.add_argument(
         "-e", "--encode", action="store_true", help="if you want to encode"
     )
@@ -29,57 +46,103 @@ if __name__ == "__main__":
         "-d",
         "--decode",
         action="store_true",
-        help="if you want to decode, by default encoding is assumed",
+        help="if you want to decode, by default encoding is assumed.",
     )
     parser.add_argument(
         "-i",
         "--input-path",
         action="store",
-        nargs=1,
         type=str,
-        help="path to the input file, if no path specified, stdin is used",
+        help="path to the input file, if no path specified, stdin is used unless --data argument is used.",
     )
     parser.add_argument(
         "-inform",
         "--input-format",
         action="store",
-        nargs=1,
         type=str,
         choices=["base64", "hex", "binary"],
-        help="format of the input, allowed are: base64, hex, binary. Default used is binary",
+        default="hex",
+        help="format of the input bytes if encoding. Default used is hex.",
     )
     parser.add_argument(
         "-o",
         "--output-path",
         action="store",
-        nargs=1,
         type=str,
-        help="path to the output file, if no path specified, stdout is used",
+        help="path to the output file, if no path specified, stdout is used.",
     )
     parser.add_argument(
         "-outform",
         "--output-format",
         action="store",
-        nargs=1,
         type=str,
         choices=["base64", "hex", "binary"],
-        help="format of the output, allowed are: base64, hex, binary. Default used is binary",
+        default="hex",
+        help="format of the output when decoding. Default used is hex.",
+    )
+    parser.add_argument(
+        "-hrp",
+        "--human-part",
+        action="store",
+        type=str,
+        default="default_hrp",
+        help="human readable part of the bech32m encoded string. Used only when encoding.",
+    )
+    parser.add_argument(
+        "--data",
+        action="store",
+        type=str,
+        help="option to pass text data as an argument instead of using file or stdin. If the data is used for encoding, the text is encoded using utf-8.",
     )
 
     args = parser.parse_args()
 
-    to_encode = False if args.decode else True
+    # Encoding is default behavior
+    to_encode = not args.decode
 
-    infile = open(args.input_path) if args.input_path else sys.stdin
-    outfile = open(args.input_path) if args.input_path else sys.stdout
+    if args.input_path and args.data:
+        raise ValueError("Two data input sources specified")
 
-    data = read_data()
+    # Dataformat should be always correct enum, constraint on format is in argparse
+    # Format specifier is used for byte-like data -> input when encoding, output when decoding
+    inform = DataFormat(args.input_format)
+    outform = DataFormat(args.output_format)
+
+    input_data = args.data
+
+    # Prefer data argument over default stdin
+    if not args.data:
+        if to_encode:
+            # With encoding, the input are bytes and can be binary
+            with open(args.input_path, "rb") if args.input_path else os.fdopen(
+                sys.stdin.fileno(), "rb"
+            ) as infile:
+                input_data = read_bytes(infile, inform)
+        else:
+            # With decoding, the input is bech32m string, so a valid text
+            with open(args.input_path, "r") if args.input_path else os.fdopen(
+                sys.stdin.fileno(), "r"
+            ) as infile:
+                input_data = infile.read().strip()
+
+    elif args.data and to_encode:
+        input_data = input_data.encode("utf8")
 
     result = bytes()
 
-    if to_encode:
-        result = bech32m.encode("", data)
-    else:
-        result = bech32m.decode("", data)
 
-    write_data(result)
+    if to_encode:
+        result = bech32m.encode(args.human_part, input_data)
+    else:
+        result = bech32m.decode(input_data)[1]
+
+    # Maybe removing the output file on exception?
+    outflags = "w" if to_encode else "wb"
+
+    with open(args.output_path, outflags) if args.output_path else os.fdopen(
+        sys.stdout.fileno(), outflags, closefd=False
+    ) as outfile:
+        if to_encode:
+            print(result, file=outfile)
+        else:
+            write_bytes(outfile, result, outform)
