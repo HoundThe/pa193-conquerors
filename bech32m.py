@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import Tuple, Union
 
 BECH32M = 0x2BC830A3
 
@@ -7,7 +7,7 @@ BECH32M_MAX_LENGTH = 90
 BECH32M_CHECKSUM_LENGTH = 6
 
 
-def bech32_polymod(values) -> int:
+def polymod(values: bytes) -> int:
     """Code taken from the bip-0350 bech32m specification"""
     GEN = [0x3B6A57B2, 0x26508E6D, 0x1EA119FA, 0x3D4233DD, 0x2A1462B3]
     chk = 1
@@ -19,14 +19,14 @@ def bech32_polymod(values) -> int:
     return chk
 
 
-def bech32_hrp_expand(s: str) -> bytes:
+def hrp_expand(s: Union[str, list[str]]) -> bytes:
     """Code taken from the bip-0350 bech32m specification"""
     return bytes([ord(x) >> 5 for x in s] + [0] + [ord(x) & 31 for x in s])
 
 
-def bech32_verify_checksum(hrp: str, data: bytes):
+def verify_checksum(hrp: Union[str, list[str]], data: bytes) -> Union[int, None]:
     """Code taken from the bip-0350 bech32m specification"""
-    check = bech32_polymod(bech32_hrp_expand(hrp) + data)
+    check = polymod(hrp_expand(hrp) + data)
     if check != BECH32M:
         return None
     return check
@@ -34,27 +34,27 @@ def bech32_verify_checksum(hrp: str, data: bytes):
 
 def create_checksum(hrp: str, data: bytes) -> bytes:
     """Code based on the bip-0350 bech32m specification"""
-    values = bech32_hrp_expand(hrp) + data
-    polymod = bech32_polymod(values + bytes([0, 0, 0, 0, 0, 0])) ^ BECH32M
-    return bytes([(polymod >> 5 * (5 - i)) & 31 for i in range(6)])
+    values = hrp_expand(hrp) + data
+    mod = polymod(values + bytes([0, 0, 0, 0, 0, 0])) ^ BECH32M
+    return bytes([(mod >> 5 * (5 - i)) & 31 for i in range(6)])
 
 
-def check_human(human: str):
+def check_human(human: str) -> None:
     if len(human) < 1 or len(human) > 83:
         raise ValueError(
-            f"Human part length has to be in range [1-83], but is {len(human)}"
+            f"Human-readable part length has to be in range [1-83], but is {len(human)}"
         )
 
     if any(True for char in human if ord(char) < 33 or ord(char) > 126):
         raise ValueError(
-            "Human part character out of range, acceptable range is [33-126]"
+            "Human-readable part character out of range, acceptable range is [33-126]"
         )
 
 
-def base32_to_bytes(b32str: str):
+def base32_to_bytes(b32str: str) -> bytes:
     byte_array = bytearray(len(b32str))
 
-    for idx in range(len(b32str)):
+    for idx, _ in enumerate(b32str):
         byte_array[idx] = BECH32M_CHARSET.index(b32str[idx])
 
     return bytes(byte_array)
@@ -77,6 +77,57 @@ def encode(human: str, raw_data: bytes) -> str:
     # Format = | Human readable part | 1 | data + checksum(data)
     data_part = data + create_checksum(human, data)
     return human + "1" + "".join(BECH32M_CHARSET[i] for i in data_part)
+
+
+def detect_single_error(hrp: str, data_bytes: bytes) -> Union[str, None]:
+    """Naive detection off single character error
+
+    Task:
+    "it suffices to implement a simplified
+    error detection that is able to identify just a _single_ symbol error in the
+    encoded string and suggest the correct input. This implementation can be done
+    naively by iterating over the possible choices and can be an optional feature in
+    case the input string is too large."
+
+        returns corrected string if found or None
+    """
+
+    human_part = list(hrp)
+    data_part = bytearray(data_bytes)
+
+    # First start with data
+    for i, _ in enumerate(data_part):
+        for j, _ in enumerate(BECH32M_CHARSET):
+            data_part[i] = j
+            # Check if the string got fixed
+            is_valid = verify_checksum(human_part, data_part)
+            if is_valid:
+                return (
+                    "".join(human_part)
+                    + "1"
+                    + "".join(BECH32M_CHARSET[i] for i in data_part)
+                )
+
+            # Else return back the original value
+            data_part[i] = data_bytes[i]
+
+    # If data part didn't have the error, human part could
+    for i, _ in enumerate(hrp):
+        for j in range(33, 126):
+            human_part[i] = chr(j)
+            # Check if the string got fixed
+            is_valid = verify_checksum(human_part, data_part)
+            if is_valid:
+                return (
+                    "".join(human_part)
+                    + "1"
+                    + "".join(BECH32M_CHARSET[i] for i in data_part)
+                )
+
+            # Else return back the original value
+            human_part[i] = hrp[i]
+
+    return None
 
 
 def decode(string: str) -> Tuple[str, bytes, int]:
@@ -104,14 +155,21 @@ def decode(string: str) -> Tuple[str, bytes, int]:
     data_bytes = base32_to_bytes(data)
     check_human(human)
 
-    enc = bech32_verify_checksum(human, data_bytes)
-    if not enc:  # TODO add missing error detection/correction
-        raise ValueError("Checksum doesn't match")
+    enc = verify_checksum(human, data_bytes)
+    if not enc:
+        is_fixable = detect_single_error(human, data_bytes)
+        if is_fixable:
+            raise ValueError(
+                f"The string is not valid, did you mean to use '{is_fixable}' instead?"
+            )
+        raise ValueError(
+            "The string is not valid and it contains more than one incorrect character."
+        )
 
     return (human, decode_data(data_bytes[:-BECH32M_CHECKSUM_LENGTH]), enc)
 
 
-def decode_data(data: bytes):
+def decode_data(data: bytes) -> bytes:
     decoded_bytes = bytearray()
     reg = 0
     stored_bits = 0
@@ -132,7 +190,7 @@ def decode_data(data: bytes):
     return bytes(decoded_bytes)
 
 
-def encode_data(data: bytes):
+def encode_data(data: bytes) -> bytes:
     encoded_bytes = bytearray()
     reg = 0
     stored_bits = 0
