@@ -1,10 +1,12 @@
 #! /bin/env python3
 
 import argparse
+from io import BufferedReader, BufferedWriter
 import sys
 import os
 from enum import Enum
 import base64
+from typing import IO, Any
 import bech32m
 
 
@@ -15,7 +17,7 @@ class DataFormat(Enum):
     BASE64 = "base64"
 
 
-def read_bytes(file, form: DataFormat) -> bytes:
+def read_bytes(file: BufferedReader, form: DataFormat) -> bytes:
     if form == DataFormat.HEX:
         data = bytes.fromhex(file.read().decode("utf-8"))
     elif form == DataFormat.BINARY:
@@ -26,7 +28,7 @@ def read_bytes(file, form: DataFormat) -> bytes:
     return data
 
 
-def write_bytes(file, data: bytes, form: DataFormat) -> None:
+def write_bytes(file: IO[Any], data: bytes, form: DataFormat) -> None:
     if form == DataFormat.HEX:
         file.write(data.hex().encode("ascii"))
     elif form == DataFormat.BINARY:
@@ -103,6 +105,9 @@ if __name__ == "__main__":
     if args.input_path and args.data:
         raise ValueError("Two data input sources specified")
 
+    # Raises on invalid human readable string
+    bech32m.check_human(args.human_part)
+
     # Dataformat should be always correct enum, constraint on format is in argparse
     # Format specifier is used for byte-like data -> input when encoding, output when decoding
     inform = DataFormat(args.input_format)
@@ -111,7 +116,10 @@ if __name__ == "__main__":
     input_data = args.data
 
     # Prefer data argument over default stdin
-    if not args.data:
+    if args.data and to_encode:
+        input_data = input_data.encode("utf8")
+    # If not passed through argument, read file or stdin
+    elif not args.data:
         if to_encode:
             # With encoding, the input are bytes and can be binary
             with open(args.input_path, "rb") if args.input_path else os.fdopen(
@@ -125,11 +133,9 @@ if __name__ == "__main__":
             ) as infile:
                 input_data = infile.read().strip()
 
-    elif args.data and to_encode:
-        input_data = input_data.encode("utf8")
+    # input_data should be str if we are decoding, otherwise bytes
 
     result = bytes()
-
 
     if to_encode:
         result = bech32m.encode(args.human_part, input_data)
@@ -137,10 +143,10 @@ if __name__ == "__main__":
         result = bech32m.decode(input_data)[1]
 
     # Maybe removing the output file on exception?
-    outflags = "w" if to_encode else "wb"
+    OUTFLAGS = "w" if to_encode else "wb"
 
-    with open(args.output_path, outflags) if args.output_path else os.fdopen(
-        sys.stdout.fileno(), outflags, closefd=False
+    with open(args.output_path, OUTFLAGS) if args.output_path else os.fdopen(
+        sys.stdout.fileno(), OUTFLAGS, closefd=False
     ) as outfile:
         if to_encode:
             print(result, file=outfile)
