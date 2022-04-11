@@ -1,7 +1,7 @@
 #! /bin/env python3
 
 import argparse
-from io import BufferedReader, BufferedWriter
+from io import BufferedReader
 import sys
 import os
 from enum import Enum
@@ -11,24 +11,29 @@ import bech32m
 
 
 class DataFormat(Enum):
-    TEXT = "text"
     HEX = "hex"
     BINARY = "binary"
     BASE64 = "base64"
 
 
 def read_bytes(file: BufferedReader, form: DataFormat) -> bytes:
-    if form == DataFormat.HEX:
-        data = bytes.fromhex(file.read().decode("utf-8"))
-    elif form == DataFormat.BINARY:
-        data = file.read()
-    elif form == DataFormat.BASE64:
-        data = base64.decodebytes(file.read())
+    """Read data bytes in some DataFormat from a FILE"""
+    try:
+        if form == DataFormat.HEX:
+            data = bytes.fromhex(file.read().decode("utf-8"))
+        elif form == DataFormat.BINARY:
+            data = file.read()
+        elif form == DataFormat.BASE64:
+            data = base64.decodebytes(file.read())
 
-    return data
+        return data
+    # Output more understandable exception if error occured during encoding
+    except ValueError:
+        raise ValueError("Invalid format of input data.")
 
 
 def write_bytes(file: IO[Any], data: bytes, form: DataFormat) -> None:
+    """Write data bytes in some DataFormat to a FILE"""
     if form == DataFormat.HEX:
         file.write(data.hex().encode("ascii"))
     elif form == DataFormat.BINARY:
@@ -80,7 +85,7 @@ if __name__ == "__main__":
         type=str,
         choices=["base64", "hex", "binary"],
         default="hex",
-        help="format of the output when decoding. Default used is hex.",
+        help="format of the output bytes when decoding. Default used is hex.",
     )
     parser.add_argument(
         "-hrp",
@@ -88,7 +93,7 @@ if __name__ == "__main__":
         action="store",
         type=str,
         default="default_hrp",
-        help="human readable part of the bech32m encoded string. Used only when encoding.",
+        help="human readable part of the bech32m encoded string. Used only when encoding. default is 'default_hrp'",
     )
     parser.add_argument(
         "--data",
@@ -99,7 +104,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    # Encoding is default behavior
+    # Encoding is the default behavior
     to_encode = not args.decode
 
     if args.input_path and args.data:
@@ -118,10 +123,11 @@ if __name__ == "__main__":
     # Prefer data argument over default stdin
     if args.data and to_encode:
         input_data = input_data.encode("utf8")
-    # If not passed through argument, read file or stdin
+
+    # If not passed through argument, read FILE
     elif not args.data:
         if to_encode:
-            # With encoding, the input are bytes and can be binary
+            # With encoding, the input are bytes and are binary-like
             with open(args.input_path, "rb") if args.input_path else os.fdopen(
                 sys.stdin.fileno(), "rb"
             ) as infile:
@@ -133,8 +139,6 @@ if __name__ == "__main__":
             ) as infile:
                 input_data = infile.read().strip()
 
-    # input_data should be str if we are decoding, otherwise bytes
-
     result = bytes()
 
     if to_encode:
@@ -142,7 +146,7 @@ if __name__ == "__main__":
     else:
         result = bech32m.decode(input_data)[1]
 
-    # Maybe removing the output file on exception?
+    # Result is text string if we are encoding
     OUTFLAGS = "w" if to_encode else "wb"
 
     with open(args.output_path, OUTFLAGS) if args.output_path else os.fdopen(

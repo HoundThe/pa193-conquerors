@@ -40,6 +40,7 @@ def create_checksum(hrp: str, data: bytes) -> bytes:
 
 
 def check_human(human: str) -> None:
+    """Check if the human readable part satisfies the specification constraints"""
     if len(human) < 1 or len(human) > 83:
         raise ValueError(
             f"Human-readable part length has to be in range [1-83], but is {len(human)}"
@@ -52,6 +53,7 @@ def check_human(human: str) -> None:
 
 
 def base32_to_bytes(b32str: str) -> bytes:
+    """Convert base32 string into 5-bit byte sequence"""
     byte_array = bytearray(len(b32str))
 
     for idx, _ in enumerate(b32str):
@@ -61,6 +63,7 @@ def base32_to_bytes(b32str: str) -> bytes:
 
 
 def encode(human: str, raw_data: bytes) -> str:
+    """Encoding of `human` and `raw_data` into a bech32m string"""
     check_human(human)
 
     data = encode_data(raw_data)
@@ -89,9 +92,10 @@ def detect_single_error(hrp: str, data_bytes: bytes) -> Union[str, None]:
     naively by iterating over the possible choices and can be an optional feature in
     case the input string is too large."
 
-        returns corrected string if found or None
+    returns correct string if found or None
     """
 
+    # Use mutable types for efficiency
     human_part = list(hrp)
     data_part = bytearray(data_bytes)
 
@@ -130,7 +134,9 @@ def detect_single_error(hrp: str, data_bytes: bytes) -> Union[str, None]:
     return None
 
 
-def decode(string: str) -> Tuple[str, bytes, int]:
+def decode(string: str) -> Tuple[str, bytes]:
+    """Decode bech32m string into pair (hrp, data_bytes)"""
+
     if "1" not in string:
         raise ValueError("Missing separator '1'")
 
@@ -166,10 +172,11 @@ def decode(string: str) -> Tuple[str, bytes, int]:
             "The string is not valid and it contains more than one incorrect character."
         )
 
-    return (human, decode_data(data_bytes[:-BECH32M_CHECKSUM_LENGTH]), enc)
+    return (human, decode_data(data_bytes[:-BECH32M_CHECKSUM_LENGTH]))
 
 
 def decode_data(data: bytes) -> bytes:
+    """Transform 5-bit byte groups into full 8-bit bytes"""
     decoded_bytes = bytearray()
     reg = 0
     stored_bits = 0
@@ -191,6 +198,7 @@ def decode_data(data: bytes) -> bytes:
 
 
 def encode_data(data: bytes) -> bytes:
+    """Transform 8-bit byte groups into smaller 5-bit bytes"""
     encoded_bytes = bytearray()
     reg = 0
     stored_bits = 0
@@ -203,7 +211,7 @@ def encode_data(data: bytes) -> bytes:
             stored_bits -= 5
             encoded_bytes.append((reg >> stored_bits) & 0x1F)
 
-    # If there are any leftovers, padd them to 5 bit group
+    # If there are any non-zero leftovers, padd them to 5 bit group
     if stored_bits != 0 and (reg << (5 - stored_bits)) & 0x1F != 0:
         encoded_bytes.append((reg << (5 - stored_bits)) & 0x1F)
 
