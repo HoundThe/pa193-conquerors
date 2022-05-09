@@ -180,25 +180,6 @@ def test_encode_b64():
     assert result.rstrip() == "kappa1231venxvenxvenxvenxvenxvenxvck54jh6"
 
 
-def test_encode_b64():
-    result = subprocess.check_output(
-        [
-            "python3",
-            "cli.py",
-            "-i",
-            "tests/inputs/encode_input.b64",
-            "-inform",
-            "base64",
-            "-hrp",
-            "kappa123",
-        ],
-        text=True,
-        timeout=10,
-    )
-
-    assert result.rstrip() == "kappa1231venxvenxvenxvenxvenxvenxvck54jh6"
-
-
 def test_encode_b64_stdin():
     result = subprocess.check_output(
         [
